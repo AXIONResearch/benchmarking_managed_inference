@@ -1,0 +1,21 @@
+{
+  "models": [
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "Qwen/Qwen2.5-7B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "google/gemma-2-9b-it",
+    "meta-llama/Llama-3.1-70B-Instruct"
+  ],
+  "prompts": [
+    "Please {task} the concept of {topic} in simple terms.",
+    "What are the top {number} things to know about {topic}?",
+    "Can you {task} the latest developments in {topic}?",
+    "Write a brief introduction to {topic}.",
+    "Compare and contrast different approaches to {topic}.",
+    "What are the challenges and opportunities in {topic}?",
+    "Explain how {topic} impacts our daily lives.",
+    "Provide {number} practical examples of {topic}."
+  ],
+  "max_tokens_range": [128, 512],
+  "temperature_range": [0.7, 1.0]
+}
