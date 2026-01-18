@@ -39,14 +39,8 @@ variable "gpu_count" {
   default     = 4
 }
 
-variable "ssh_user" {
-  description = "SSH username"
+variable "hf_token" {
+  description = "HuggingFace API token for model access"
   type        = string
-  default     = "ubuntu"
-}
-
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key"
-  type        = string
-  default     = "~/.ssh/id_rsa.pub"
+  sensitive   = true
 }

@@ -14,8 +14,7 @@ provider "google" {
   zone    = var.zone
 }
 
-# GCP Compute Instance for KVCached benchmarking
-resource "google_compute_instance" "modelsguard_bench" {
+resource "google_compute_instance" "kvcached_instance" {
   name         = var.instance_name
   machine_type = var.machine_type
   zone         = var.zone
@@ -23,16 +22,10 @@ resource "google_compute_instance" "modelsguard_bench" {
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-12"
-      size  = 10  # Match existing boot disk size
+      size  = 100
       type  = "pd-balanced"
     }
   }
-
-  # Note: Scratch disk commented out as it doesn't exist on current VM
-  # Uncomment if creating new VM with scratch disk for model cache
-  # scratch_disk {
-  #   interface = "NVME"
-  # }
 
   network_interface {
     network = "default"
@@ -47,48 +40,46 @@ resource "google_compute_instance" "modelsguard_bench" {
   }
 
   scheduling {
-    on_host_maintenance = "TERMINATE"  # Required for GPU instances
+    on_host_maintenance = "TERMINATE"
     automatic_restart   = false
   }
 
-  metadata_startup_script = file("${path.module}/startup.sh")
+  metadata_startup_script = templatefile("${path.module}/startup.sh", {
+    HF_TOKEN = var.hf_token
+  })
 
-  # Tags commented out to match existing VM - add tags only when needed
-  # tags = ["modelsguard-bench", "http-server", "https-server"]
-
-  # Lifecycle configuration to prevent accidental changes to existing VM
-  lifecycle {
-    ignore_changes = [
-      metadata,
-      metadata_startup_script,
-      service_account,
-      labels,
-      boot_disk,
-      network_interface,
-    ]
-  }
+  tags = ["kvcached", "http-server"]
 }
 
-# Firewall rules for vLLM endpoints
-resource "google_compute_firewall" "vllm_ports" {
-  name    = "modelsguard-vllm-ports"
+resource "google_compute_firewall" "kvcached_ports" {
+  name    = "kvcached-ports"
   network = "default"
 
   allow {
     protocol = "tcp"
-    ports    = ["8001-8005", "8080", "8081", "22"]
+    ports    = ["8001-8005", "8081", "22"]
   }
 
-  source_ranges = ["0.0.0.0/0"]  # Restrict this in production
-  target_tags   = ["modelsguard-bench"]
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["kvcached"]
 }
 
 output "instance_ip" {
-  value       = google_compute_instance.modelsguard_bench.network_interface[0].access_config[0].nat_ip
-  description = "Public IP of the benchmark instance"
+  value       = google_compute_instance.kvcached_instance.network_interface[0].access_config[0].nat_ip
+  description = "Public IP of KVCached instance"
 }
 
 output "instance_name" {
-  value       = google_compute_instance.modelsguard_bench.name
+  value       = google_compute_instance.kvcached_instance.name
   description = "Name of the instance"
+}
+
+output "ssh_command" {
+  value       = "gcloud compute ssh --zone ${var.zone} ${google_compute_instance.kvcached_instance.name} --project ${var.project_id}"
+  description = "Command to SSH into the instance"
+}
+
+output "health_check_url" {
+  value       = "http://${google_compute_instance.kvcached_instance.network_interface[0].access_config[0].nat_ip}:8081/health"
+  description = "Health check URL for KVCached"
 }
