@@ -14,7 +14,20 @@ provider "google" {
   zone    = var.zone
 }
 
-# Persistent disk for model storage
+# GCS bucket for shared model storage
+resource "google_storage_bucket" "model_cache" {
+  name          = "atomix-model-cache-${var.region}"
+  location      = var.region
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+
+  labels = {
+    purpose = "model-cache"
+  }
+}
+
+# Persistent disk for model storage (local cache)
 resource "google_compute_disk" "model_cache" {
   name  = "atomix-model-cache"
   type  = "pd-balanced"
