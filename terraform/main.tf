@@ -14,6 +14,18 @@ provider "google" {
   zone    = var.zone
 }
 
+# Persistent disk for model storage
+resource "google_compute_disk" "model_cache" {
+  name  = "atomix-model-cache"
+  type  = "pd-balanced"
+  zone  = var.zone
+  size  = 500  # 500GB for model storage
+
+  labels = {
+    purpose = "model-cache"
+  }
+}
+
 # GCP Compute Instance with 8x L4 24GB GPUs
 resource "google_compute_instance" "atomix_bench" {
   name         = "atomix-bench-l4"
@@ -23,9 +35,16 @@ resource "google_compute_instance" "atomix_bench" {
   boot_disk {
     initialize_params {
       image = "deeplearning-platform-release/common-cu128-ubuntu-2204-nvidia-570"
-      size  = 500  # 500GB boot disk
+      size  = 200  # Reduced boot disk, models on separate disk
       type  = "pd-balanced"
     }
+  }
+
+  # Attach persistent disk for model storage
+  attached_disk {
+    source      = google_compute_disk.model_cache.id
+    device_name = "model-cache"
+    mode        = "READ_WRITE"
   }
 
   network_interface {
@@ -63,7 +82,35 @@ resource "google_compute_instance" "atomix_bench" {
     apt-get update
     apt-get install -y git htop
 
+    # Mount persistent disk for model storage
+    DEVICE="/dev/disk/by-id/google-model-cache"
+    MOUNT_POINT="/mnt/model-cache"
+
+    # Check if disk is already formatted
+    if ! blkid $DEVICE; then
+      echo "Formatting persistent disk..."
+      mkfs.ext4 -F $DEVICE
+    fi
+
+    # Create mount point and mount
+    mkdir -p $MOUNT_POINT
+    if ! mountpoint -q $MOUNT_POINT; then
+      echo "Mounting persistent disk..."
+      mount $DEVICE $MOUNT_POINT
+    fi
+
+    # Add to fstab if not already present
+    if ! grep -q "$DEVICE" /etc/fstab; then
+      echo "$DEVICE $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+
+    # Create HuggingFace cache directory on persistent disk
+    mkdir -p $MOUNT_POINT/huggingface
+    chown -R 1000:1000 $MOUNT_POINT/huggingface
+    chmod -R 755 $MOUNT_POINT/huggingface
+
     echo "Setup complete! Ready for vLLM deployment."
+    echo "Model cache mounted at: $MOUNT_POINT/huggingface"
   EOF
 
   tags = ["atomix-bench", "http-server", "https-server"]

@@ -12,7 +12,7 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model meta-llama/Llama-3.1-8B-Instruct
       --host 0.0.0.0
@@ -44,7 +44,7 @@ services:
     ports:
       - "8002:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model meta-llama/Llama-3.1-8B-Instruct
       --host 0.0.0.0
@@ -76,7 +76,7 @@ services:
     ports:
       - "8003:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model Qwen/Qwen2.5-7B-Instruct
       --host 0.0.0.0
@@ -108,7 +108,7 @@ services:
     ports:
       - "8004:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model Qwen/Qwen2.5-7B-Instruct
       --host 0.0.0.0
@@ -140,7 +140,7 @@ services:
     ports:
       - "8005:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model mistralai/Mixtral-8x7B-Instruct-v0.1
       --host 0.0.0.0
@@ -173,7 +173,7 @@ services:
     ports:
       - "8006:8000"
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
       --model mistralai/Mixtral-8x7B-Instruct-v0.1
       --host 0.0.0.0
