@@ -7,7 +7,7 @@ cd terraform
 nano terraform.tfvars
 ```
 
-Change line 10:
+Change:
 ```
 hf_token = "YOUR_HF_TOKEN_HERE"
 ```
@@ -17,20 +17,24 @@ to:
 hf_token = "hf_your_actual_token"
 ```
 
-Get token from: https://huggingface.co/settings/tokens
+Get token: https://huggingface.co/settings/tokens
 
 Save and exit.
 
 ## Step 2: Deploy
 
 ```bash
-terraform init
 terraform apply
 ```
 
 Type `yes` when prompted.
 
-**Wait 15-20 minutes** for complete deployment.
+**Terraform will:**
+- Use existing `omri-kvcached` VM if it exists
+- OR create new VM if it doesn't exist
+- SSH in and deploy KVCached automatically
+
+**Wait 10-15 minutes** for deployment.
 
 ## Step 3: Verify
 
@@ -41,21 +45,21 @@ terraform output
 # SSH to VM
 $(terraform output -raw ssh_command)
 
-# Check startup progress
-sudo tail -f /var/log/kvcached-startup.log
+# Check deployment log
+sudo tail -f /var/log/kvcached-deploy.log
 
-# When complete, test health
+# Test health
 curl http://localhost:8081/health
 ```
 
-## Done
+## External Access
 
-Access externally:
 ```bash
 curl http://$(terraform output -raw instance_ip):8081/health
 ```
 
-Destroy when done:
+## Cleanup
+
 ```bash
 terraform destroy
 ```
