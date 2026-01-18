@@ -2,21 +2,240 @@
 
 Benchmarking framework to compare **baseline vLLM inference** vs **managed/optimized inference** (with KVCached and smart load balancing) across a heterogeneous multi-model setup.
 
+## 📋 Table of Contents
+
+- **NEW: [Kubernetes Deployment](#-quick-start---kubernetes-deployment)** ← Start here for K8s on GCP
+- [Docker Compose Deployment (Legacy)](#-docker-compose-deployment-legacy)
+- [Dashboard](#-dashboard-features)
+- [Documentation](#-documentation)
+
 ## Overview
 
 This project benchmarks vLLM performance improvements using:
 - **KVCached**: Elastic KV cache management via CUDA VMM
 - **Smart Load Balancing**: Queue-aware request routing (vs. model-aware round-robin)
-- **Multi-model Setup**: 3 models with 2 replicas each across 6x H100 GPUs
+- **Multi-model Setup**: 3 models with 2 replicas each
 - **GenAI-Perf**: Industry-standard benchmarking tool from Triton Inference Server
+- **Two Deployment Options**: Kubernetes (K3s) or Docker Compose
 
-## Infrastructure
+## 🆕 Kubernetes Deployment (Recommended)
+
+### Infrastructure
+
+- **Cloud**: GCP Compute Engine
+- **GPUs**: 8x L4 GPUs (6 allocated for models)
+- **Platform**: K3s (lightweight Kubernetes)
+- **OS**: Ubuntu 22.04 + CUDA 12.x
+
+### Model Configuration (K8s)
+
+| Model | Replicas | GPUs per Pod | Service Name |
+|-------|----------|--------------|--------------|
+| Llama-3.1-8B | 2 | 1 | `vllm-llama-8b` |
+| Qwen2.5-7B | 2 | 1 | `vllm-qwen-7b` |
+| Mistral-7B | 2 | 1 | `vllm-mistral-7b` |
+
+**Total**: 6 pods using 6 GPUs with native kube-proxy load balancing
+
+---
+
+## 🚀 Quick Start - Kubernetes Deployment
+
+### Prerequisites
+
+1. **GCP Account** with GPU quota
+2. **HuggingFace Token** with access to gated models ([get one here](https://huggingface.co/settings/tokens))
+3. **Local Tools**: Terraform >= 1.0, SSH client
+
+### Step 1: Deploy Infrastructure with Terraform
+
+```bash
+cd terraform
+
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Deploy GCP instance with 8x L4 GPUs + K3s
+terraform apply
+# Type 'yes' when prompted
+
+# Save the instance IP
+INSTANCE_IP=$(terraform output -raw instance_ip)
+echo "Instance IP: $INSTANCE_IP"
+```
+
+**What gets created:**
+- GCP instance (`a3-highgpu-1g`) with 8x L4 GPUs
+- K3s Kubernetes cluster
+- NVIDIA Container Toolkit + CUDA 12.x
+- Firewall rules for SSH and K8s
+
+**Time**: ~5-10 minutes
+
+### Step 2: Deploy Baseline vLLM on K8s
+
+```bash
+# SSH to the instance
+ssh -i ~/.ssh/google_compute_engine davidengstler@$INSTANCE_IP
+
+# Upload K8s deployment files (from local machine, before SSH)
+scp -i ~/.ssh/google_compute_engine -r k8s/ davidengstler@$INSTANCE_IP:~/
+
+# On the GCP instance, run the deployment script
+cd ~/k8s
+chmod +x deploy-baseline.sh
+HF_TOKEN=hf_YOUR_TOKEN_HERE ./deploy-baseline.sh
+```
+
+**What this does:**
+1. Creates `baseline` namespace
+2. Creates HuggingFace token secret
+3. Deploys 6 model pods (3 models × 2 replicas)
+4. Creates ClusterIP services with kube-proxy load balancing
+5. Waits for all pods to be ready
+
+**Time**: 3-5 minutes for deployment + 3-5 minutes for models to download (first time only)
+
+### Step 3: Verify Deployment
+
+```bash
+# Check pods (on GCP instance)
+sudo k3s kubectl get pods -n baseline -o wide
+
+# Expected output:
+# vllm-llama-8b-0     1/1  Running
+# vllm-llama-8b-1     1/1  Running
+# vllm-qwen-7b-0      1/1  Running
+# vllm-qwen-7b-1      1/1  Running
+# vllm-mistral-7b-0   1/1  Running
+# vllm-mistral-7b-1   1/1  Running
+
+# Check services
+sudo k3s kubectl get svc -n baseline
+
+# Test a service
+sudo k3s kubectl port-forward -n baseline service/vllm-llama-8b 9000:8000 &
+curl http://localhost:9000/v1/models
+```
+
+### Step 4: Run Benchmarks
+
+**Option A: Automated (Recommended)** - From your local machine:
+
+```bash
+# Run GenAI-Perf against all models
+./scripts/run_genai_perf_baseline.sh
+
+# This fully automates:
+# 1. Upload scripts to GCP
+# 2. Run GenAI-Perf benchmarks (~10-15 min)
+# 3. Convert results to dashboard format
+# 4. Download results to results/baseline/k8s/
+```
+
+**Option B: Manual** - On GCP instance:
+
+```bash
+# Custom Python benchmark
+python3 ~/k8s/benchmark_k8s.py
+# Results: /tmp/all-models-results.json
+```
+
+### Step 5: View Results in Dashboard
+
+From your local machine:
+
+```bash
+cd dashboard
+streamlit run comparative_dashboard.py
+# Opens at http://localhost:8501
+
+# Select "GenAI-Perf" from the benchmark type dropdown
+# Choose your view mode (Single, Side-by-Side, or Overlay)
+```
+
+### Clean Up
+
+```bash
+# Delete K8s deployments (on GCP instance)
+sudo k3s kubectl delete namespace baseline
+
+# Destroy infrastructure (from local machine)
+cd terraform
+terraform destroy
+```
+
+---
+
+## 📊 Dashboard Features
+
+The Streamlit dashboard (`dashboard/comparative_dashboard.py`) provides:
+
+- **Benchmark Type Selector**: Custom, GenAI-Perf, or Both (comparison)
+- **View Modes**: Single Environment, Side-by-Side, Overlay
+- **Metrics**: Requests/sec, latency (mean, P95, P99), tokens/sec, success rate
+- **Interactive Charts**: Plotly visualizations with drill-down
+
+---
+
+## 🔧 Kubernetes Management
+
+### Common Operations
+
+```bash
+# View logs
+sudo k3s kubectl logs -n baseline vllm-llama-8b-0 --tail=50
+
+# Restart a pod
+sudo k3s kubectl delete pod vllm-llama-8b-0 -n baseline
+
+# Check GPU allocation
+sudo k3s kubectl get nodes -o json | jq '.items[].status.allocatable'
+
+# Port-forward to test endpoints
+sudo k3s kubectl port-forward -n baseline service/vllm-qwen-7b 9000:8000
+```
+
+### Troubleshooting K8s
+
+**Pods stuck in Pending:**
+```bash
+# Check GPU availability
+nvidia-smi
+sudo k3s kubectl get pods -n kube-system | grep nvidia
+```
+
+**Models not loading:**
+```bash
+# Verify HuggingFace secret
+sudo k3s kubectl get secret -n baseline huggingface-token
+sudo k3s kubectl get secret huggingface-token -n baseline -o jsonpath='{.data.token}' | base64 -d
+```
+
+---
+
+## 📖 Documentation
+
+- **[CLAUDE.md](CLAUDE.md)** - Complete technical documentation
+- **[k8s/GENAI_PERF_GUIDE.md](k8s/GENAI_PERF_GUIDE.md)** - GenAI-Perf benchmarking guide
+- **[scripts/README_GENAI_PERF.md](scripts/README_GENAI_PERF.md)** - Automation script docs
+
+---
+
+## 🐳 Docker Compose Deployment (Legacy)
+
+The original Docker Compose deployment is still available for H100 instances. See sections below for Docker-specific instructions.
+
+### Infrastructure (Docker)
 
 - **Cloud**: GCP
 - **GPUs**: 6x H100 80GB (single node)
 - **OS**: Ubuntu 22.04 + CUDA 12.x
 
-## Model Configuration
+### Model Configuration (Docker)
 
 **Pod Layout:** 3 models with replication for high availability and load distribution
 
