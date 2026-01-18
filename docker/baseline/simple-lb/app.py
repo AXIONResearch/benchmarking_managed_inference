@@ -25,7 +25,7 @@ class RoundRobinSelector:
         self.model_endpoints = {
             "meta-llama/Llama-3.1-8B-Instruct": [endpoints[0], endpoints[1]],
             "Qwen/Qwen2.5-7B-Instruct": [endpoints[2], endpoints[3]],
-            "meta-llama/Llama-3.3-70B-Instruct": [endpoints[4], endpoints[5]],
+            "mistralai/Mistral-7B-Instruct-v0.3": [endpoints[4], endpoints[5]],
         }
 
         # Create round-robin iterators for each model
@@ -79,12 +79,16 @@ async def proxy_request(request: Request):
         # Select endpoint via round-robin
         endpoint = selector.get_next_endpoint(model)
 
-        # Forward request
+        # Forward request with clean headers
+        headers = {
+            "Content-Type": "application/json",
+        }
+
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 f"{endpoint}{request.url.path}",
                 json=body,
-                headers=dict(request.headers)
+                headers=headers
             )
 
             # Handle streaming responses
@@ -99,6 +103,7 @@ async def proxy_request(request: Request):
                     status_code=response.status_code
                 )
             else:
+                # Return JSON response directly
                 return JSONResponse(
                     content=response.json(),
                     status_code=response.status_code
@@ -115,7 +120,7 @@ async def list_models():
     models = [
         {"id": "meta-llama/Llama-3.1-8B-Instruct", "object": "model", "replicas": 2},
         {"id": "Qwen/Qwen2.5-7B-Instruct", "object": "model", "replicas": 2},
-        {"id": "meta-llama/Llama-3.3-70B-Instruct", "object": "model", "replicas": 2},
+        {"id": "mistralai/Mistral-7B-Instruct-v0.3", "object": "model", "replicas": 2},
     ]
     return {"object": "list", "data": models}
 
