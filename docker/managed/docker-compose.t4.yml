@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # Pod 0: Llama 3.1 8B on GPU 0 (KVCached)
+  vllm-llama-8b:
+    image: ghcr.io/ovg-project/kvcached-vllm:latest
+    container_name: vllm-llama-8b-kvcached
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - HF_TOKEN=${HF_TOKEN}
+      - ENABLE_KVCACHED=true
+    ports:
+      - "8001:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model meta-llama/Llama-3.1-8B-Instruct
+      --host 0.0.0.0
+      --port 8000
+      --no-enable-prefix-caching
+      --gpu-memory-utilization 0.90
+      --max-model-len 4096
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+
+  # Pod 1: Qwen 2.5 7B on GPU 1 (KVCached)
+  vllm-qwen-7b:
+    image: ghcr.io/ovg-project/kvcached-vllm:latest
+    container_name: vllm-qwen-7b-kvcached
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=1
+      - HF_TOKEN=${HF_TOKEN}
+      - ENABLE_KVCACHED=true
+    ports:
+      - "8002:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --host 0.0.0.0
+      --port 8000
+      --no-enable-prefix-caching
+      --gpu-memory-utilization 0.90
+      --max-model-len 4096
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+  # Pod 2: Mistral 7B on GPU 2 (KVCached)
+  vllm-mistral-7b:
+    image: ghcr.io/ovg-project/kvcached-vllm:latest
+    container_name: vllm-mistral-7b-kvcached
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=2
+      - HF_TOKEN=${HF_TOKEN}
+      - ENABLE_KVCACHED=true
+    ports:
+      - "8003:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model mistralai/Mistral-7B-Instruct-v0.3
+      --host 0.0.0.0
+      --port 8000
+      --no-enable-prefix-caching
+      --gpu-memory-utilization 0.90
+      --max-model-len 4096
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['2']
+              capabilities: [gpu]
+
+  # Pod 3: Gemma 2 9B on GPU 3 (KVCached)
+  vllm-gemma-9b:
+    image: ghcr.io/ovg-project/kvcached-vllm:latest
+    container_name: vllm-gemma-9b-kvcached
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=3
+      - HF_TOKEN=${HF_TOKEN}
+      - ENABLE_KVCACHED=true
+    ports:
+      - "8004:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model google/gemma-2-9b-it
+      --host 0.0.0.0
+      --port 8000
+      --no-enable-prefix-caching
+      --gpu-memory-utilization 0.90
+      --max-model-len 4096
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['3']
+              capabilities: [gpu]
+
+  # Smart load balancer (queue-aware routing)
+  smart-lb:
+    build:
+      context: ./smart-lb
+      dockerfile: Dockerfile
+    container_name: managed-smart-lb
+    ports:
+      - "8081:8000"
+    environment:
+      - VLLM_ENDPOINTS=http://vllm-llama-8b:8000,http://vllm-qwen-7b:8000,http://vllm-mistral-7b:8000,http://vllm-gemma-9b:8000
+      - METRICS_POLL_INTERVAL=1
+    depends_on:
+      - vllm-llama-8b
+      - vllm-qwen-7b
+      - vllm-mistral-7b
+      - vllm-gemma-9b
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

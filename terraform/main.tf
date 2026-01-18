@@ -14,24 +14,25 @@ provider "google" {
   zone    = var.zone
 }
 
-# GCP Compute Instance with 6x H100 80GB GPUs
+# GCP Compute Instance for KVCached benchmarking
 resource "google_compute_instance" "modelsguard_bench" {
-  name         = "modelsguard-bench-h100"
-  machine_type = "a3-highgpu-8g"  # 8x H100 80GB (we'll use 6)
+  name         = var.instance_name
+  machine_type = var.machine_type
   zone         = var.zone
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
-      size  = 500  # 500GB boot disk
+      image = "debian-cloud/debian-12"
+      size  = 10  # Match existing boot disk size
       type  = "pd-balanced"
     }
   }
 
-  # Additional disk for models and cache
-  scratch_disk {
-    interface = "NVME"
-  }
+  # Note: Scratch disk commented out as it doesn't exist on current VM
+  # Uncomment if creating new VM with scratch disk for model cache
+  # scratch_disk {
+  #   interface = "NVME"
+  # }
 
   network_interface {
     network = "default"
@@ -41,8 +42,8 @@ resource "google_compute_instance" "modelsguard_bench" {
   }
 
   guest_accelerator {
-    type  = "nvidia-h100-80gb"
-    count = 6
+    type  = var.gpu_type
+    count = var.gpu_count
   }
 
   scheduling {
@@ -50,13 +51,22 @@ resource "google_compute_instance" "modelsguard_bench" {
     automatic_restart   = false
   }
 
-  metadata = {
-    ssh-keys = "${var.ssh_user}:${file(var.ssh_public_key_path)}"
-  }
-
   metadata_startup_script = file("${path.module}/startup.sh")
 
-  tags = ["modelsguard-bench", "http-server", "https-server"]
+  # Tags commented out to match existing VM - add tags only when needed
+  # tags = ["modelsguard-bench", "http-server", "https-server"]
+
+  # Lifecycle configuration to prevent accidental changes to existing VM
+  lifecycle {
+    ignore_changes = [
+      metadata,
+      metadata_startup_script,
+      service_account,
+      labels,
+      boot_disk,
+      network_interface,
+    ]
+  }
 }
 
 # Firewall rules for vLLM endpoints
