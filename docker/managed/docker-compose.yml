@@ -210,15 +210,15 @@ services:
     ports:
       - "8081:8000"
     environment:
-      - VLLM_ENDPOINTS=http://vllm-llama-8b-1:8000,http://vllm-llama-8b-2:8000,http://vllm-qwen-7b-1:8000,http://vllm-qwen-7b-2:8000,http://vllm-llama-70b-1:8000,http://vllm-llama-70b-2:8000
+      - VLLM_ENDPOINTS=http://vllm-mixtral-8x7b-1-kvcached:8000,http://vllm-mixtral-8x7b-2-kvcached:8000,http://vllm-llama-8b-1-kvcached:8000,http://vllm-llama-8b-2-kvcached:8000,http://vllm-qwen-7b-1-kvcached:8000,http://vllm-qwen-7b-2-kvcached:8000
       - METRICS_POLL_INTERVAL=1
     depends_on:
       - vllm-llama-8b-1
       - vllm-llama-8b-2
       - vllm-qwen-7b-1
       - vllm-qwen-7b-2
-      - vllm-llama-70b-1
-      - vllm-llama-70b-2
+      - vllm-mixtral-8x7b-1
+      - vllm-mixtral-8x7b-2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
