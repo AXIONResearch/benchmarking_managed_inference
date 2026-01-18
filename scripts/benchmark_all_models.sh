@@ -47,7 +47,7 @@ echo ""
 MODELS=(
     "meta-llama/Llama-3.1-8B-Instruct"
     "Qwen/Qwen2.5-7B-Instruct"
-    "meta-llama/Llama-3.3-70B-Instruct"
+    "mistralai/Mistral-7B-Instruct-v0.3"
 )
 
 # Benchmark each model

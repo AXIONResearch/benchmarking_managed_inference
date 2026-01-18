@@ -129,26 +129,25 @@ services:
               device_ids: ['3']
               capabilities: [gpu]
 
-  # Pod 4: Mixtral 8x7B Instruct Replica 1 on GPU 4-5 (tensor parallel)
-  vllm-mixtral-8x7b-1:
+  # Pod 4: Mistral 7B Replica 1 on GPU 4
+  vllm-mistral-7b-1:
     image: vllm/vllm-openai:latest
-    container_name: vllm-mixtral-8x7b-1
+    container_name: vllm-mistral-7b-1
     runtime: nvidia
     environment:
-      - NVIDIA_VISIBLE_DEVICES=4,5
+      - NVIDIA_VISIBLE_DEVICES=4
       - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8005:8000"
     volumes:
       - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
-      --model mistralai/Mixtral-8x7B-Instruct-v0.1
+      --model mistralai/Mistral-7B-Instruct-v0.3
       --host 0.0.0.0
       --port 8000
       --enable-prefix-caching
-      --gpu-memory-utilization 0.90
+      --gpu-memory-utilization 0.95
       --max-model-len 8192
-      --tensor-parallel-size 2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -159,29 +158,28 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['4','5']
+              device_ids: ['4']
               capabilities: [gpu]
 
-  # Pod 5: Mixtral 8x7B Instruct Replica 2 on GPU 6-7 (tensor parallel)
-  vllm-mixtral-8x7b-2:
+  # Pod 5: Mistral 7B Replica 2 on GPU 5
+  vllm-mistral-7b-2:
     image: vllm/vllm-openai:latest
-    container_name: vllm-mixtral-8x7b-2
+    container_name: vllm-mistral-7b-2
     runtime: nvidia
     environment:
-      - NVIDIA_VISIBLE_DEVICES=6,7
+      - NVIDIA_VISIBLE_DEVICES=5
       - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8006:8000"
     volumes:
       - /mnt/model-cache/huggingface:/root/.cache/huggingface
     command: >
-      --model mistralai/Mixtral-8x7B-Instruct-v0.1
+      --model mistralai/Mistral-7B-Instruct-v0.3
       --host 0.0.0.0
       --port 8000
       --enable-prefix-caching
-      --gpu-memory-utilization 0.90
+      --gpu-memory-utilization 0.95
       --max-model-len 8192
-      --tensor-parallel-size 2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -192,7 +190,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['6','7']
+              device_ids: ['5']
               capabilities: [gpu]
 
   # Simple model-aware round-robin load balancer
@@ -204,14 +202,14 @@ services:
     ports:
       - "8080:8000"
     environment:
-      - VLLM_ENDPOINTS=http://vllm-llama-8b-1:8000,http://vllm-llama-8b-2:8000,http://vllm-qwen-7b-1:8000,http://vllm-qwen-7b-2:8000,http://vllm-mixtral-8x7b-1:8000,http://vllm-mixtral-8x7b-2:8000
+      - VLLM_ENDPOINTS=http://vllm-llama-8b-1:8000,http://vllm-llama-8b-2:8000,http://vllm-qwen-7b-1:8000,http://vllm-qwen-7b-2:8000,http://vllm-mistral-7b-1:8000,http://vllm-mistral-7b-2:8000
     depends_on:
       - vllm-llama-8b-1
       - vllm-llama-8b-2
       - vllm-qwen-7b-1
       - vllm-qwen-7b-2
-      - vllm-mixtral-8x7b-1
-      - vllm-mixtral-8x7b-2
+      - vllm-mistral-7b-1
+      - vllm-mistral-7b-2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
