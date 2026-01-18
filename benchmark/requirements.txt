@@ -1,5 +1,0 @@
-aiohttp==3.9.1
-asyncio==3.4.3
-numpy==1.26.3
-pandas==2.2.0
-matplotlib==3.8.2

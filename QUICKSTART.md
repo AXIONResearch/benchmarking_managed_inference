@@ -85,7 +85,7 @@ ls -la results/baseline/
 ./scripts/deploy.sh managed
 
 # Wait for models to load
-docker logs -f vllm-llama-8b-kvcached
+docker logs -f vllm-llama-8b-1-kvcached
 
 # Run benchmark
 ./scripts/run_benchmark.sh managed 100 10
@@ -127,14 +127,25 @@ watch -n 1 nvidia-smi
 
 **Test individual pods:**
 ```bash
-# Test Llama 8B directly
+# Test Llama 8B replica 1
 curl http://localhost:8001/v1/models
 
-# Send test request
-curl http://localhost:8001/v1/chat/completions \
+# Test Llama 8B replica 2
+curl http://localhost:8002/v1/models
+
+# Test Qwen 7B replicas
+curl http://localhost:8003/v1/models
+curl http://localhost:8004/v1/models
+
+# Test Llama 70B replicas
+curl http://localhost:8005/v1/models
+curl http://localhost:8006/v1/models
+
+# Send test request to Llama 70B
+curl http://localhost:8005/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.3-70B-Instruct",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 100
   }'

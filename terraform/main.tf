@@ -14,23 +14,18 @@ provider "google" {
   zone    = var.zone
 }
 
-# GCP Compute Instance with 6x H100 80GB GPUs
+# GCP Compute Instance with 8x L4 24GB GPUs
 resource "google_compute_instance" "modelsguard_bench" {
-  name         = "modelsguard-bench-h100"
-  machine_type = "a3-highgpu-8g"  # 8x H100 80GB (we'll use 6)
+  name         = "modelsguard-bench-l4"
+  machine_type = "g2-standard-96"  # 8x L4 24GB
   zone         = var.zone
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
+      image = "deeplearning-platform-release/common-cu128-ubuntu-2204-nvidia-570"
       size  = 500  # 500GB boot disk
       type  = "pd-balanced"
     }
-  }
-
-  # Additional disk for models and cache
-  scratch_disk {
-    interface = "NVME"
   }
 
   network_interface {
@@ -40,10 +35,8 @@ resource "google_compute_instance" "modelsguard_bench" {
     }
   }
 
-  guest_accelerator {
-    type  = "nvidia-h100-80gb"
-    count = 6
-  }
+  # Note: g2-standard-96 comes with 8x L4 24GB GPUs built-in
+  # No need to specify guest_accelerator separately
 
   scheduling {
     on_host_maintenance = "TERMINATE"  # Required for GPU instances
@@ -54,7 +47,24 @@ resource "google_compute_instance" "modelsguard_bench" {
     ssh-keys = "${var.ssh_user}:${file(var.ssh_public_key_path)}"
   }
 
-  metadata_startup_script = file("${path.module}/startup.sh")
+  metadata_startup_script = <<-EOF
+    #!/bin/bash
+    set -e
+
+    # Deep Learning VM already has Docker, NVIDIA drivers, and nvidia-container-toolkit
+    # Just install Docker Compose and utilities
+
+    # Install Docker Compose
+    DOCKER_COMPOSE_VERSION="2.24.0"
+    curl -L "https://github.com/docker/compose/releases/download/v$${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+
+    # Install utilities
+    apt-get update
+    apt-get install -y git htop
+
+    echo "Setup complete! Ready for vLLM deployment."
+  EOF
 
   tags = ["modelsguard-bench", "http-server", "https-server"]
 }
@@ -66,7 +76,7 @@ resource "google_compute_firewall" "vllm_ports" {
 
   allow {
     protocol = "tcp"
-    ports    = ["8001-8005", "8080", "8081", "22"]
+    ports    = ["8001-8006", "8080", "8081", "22"]
   }
 
   source_ranges = ["0.0.0.0/0"]  # Restrict this in production
@@ -75,10 +85,15 @@ resource "google_compute_firewall" "vllm_ports" {
 
 output "instance_ip" {
   value       = google_compute_instance.modelsguard_bench.network_interface[0].access_config[0].nat_ip
-  description = "Public IP of the benchmark instance"
+  description = "Public IP of the A100 benchmark instance"
 }
 
 output "instance_name" {
   value       = google_compute_instance.modelsguard_bench.name
   description = "Name of the instance"
+}
+
+output "instance_info" {
+  value = "Instance: ${google_compute_instance.modelsguard_bench.name} with 8x L4 24GB GPUs (~$8/hour)"
+  description = "Instance information"
 }

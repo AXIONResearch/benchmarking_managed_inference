@@ -6,8 +6,9 @@ Benchmarking framework to compare **baseline vLLM inference** vs **managed/optim
 
 This project benchmarks vLLM performance improvements using:
 - **KVCached**: Elastic KV cache management via CUDA VMM
-- **Smart Load Balancing**: Queue-aware request routing
-- **Multi-model Setup**: 5 different models across 6x H100 GPUs
+- **Smart Load Balancing**: Queue-aware request routing (vs. model-aware round-robin)
+- **Multi-model Setup**: 3 models with 2 replicas each across 6x H100 GPUs
+- **GenAI-Perf**: Industry-standard benchmarking tool from Triton Inference Server
 
 ## Infrastructure
 
@@ -17,13 +18,21 @@ This project benchmarks vLLM performance improvements using:
 
 ## Model Configuration
 
-| Pod | GPU(s) | Model | HF Path | Port |
-|-----|--------|-------|---------|------|
-| 0 | 0 | Llama 3.1 8B | `meta-llama/Llama-3.1-8B-Instruct` | 8001 |
-| 1 | 1 | Qwen 2.5 7B | `Qwen/Qwen2.5-7B-Instruct` | 8002 |
-| 2 | 2 | Mistral 7B | `mistralai/Mistral-7B-Instruct-v0.3` | 8003 |
-| 3 | 3 | Gemma 2 9B | `google/gemma-2-9b-it` | 8004 |
-| 4 | 4,5 | Llama 3.1 70B (TP=2) | `meta-llama/Llama-3.1-70B-Instruct` | 8005 |
+**Pod Layout:** 3 models with replication for high availability and load distribution
+
+| Pod | GPU | Model | HF Path | Port | Notes |
+|-----|-----|-------|---------|------|-------|
+| 0 | 0 | Llama 3.1 8B (R1) | `meta-llama/Llama-3.1-8B-Instruct` | 8001 | Small model replica 1 |
+| 1 | 1 | Llama 3.1 8B (R2) | `meta-llama/Llama-3.1-8B-Instruct` | 8002 | Small model replica 2 |
+| 2 | 2 | Qwen 2.5 7B (R1) | `Qwen/Qwen2.5-7B-Instruct` | 8003 | Small model replica 1 |
+| 3 | 3 | Qwen 2.5 7B (R2) | `Qwen/Qwen2.5-7B-Instruct` | 8004 | Small model replica 2 |
+| 4 | 4 | Llama 3.3 70B (R1) | `meta-llama/Llama-3.3-70B-Instruct` | 8005 | Large model, AWQ 4-bit |
+| 5 | 5 | Llama 3.3 70B (R2) | `meta-llama/Llama-3.3-70B-Instruct` | 8006 | Large model, AWQ 4-bit |
+
+**Benefits of this layout:**
+- **Load Distribution**: 2 replicas per model allow load balancing
+- **High Availability**: Replica redundancy ensures service continuity
+- **Real-world Scenario**: Mimics multi-tenant production environments
 
 ## Directory Structure
 
@@ -36,25 +45,23 @@ This project benchmarks vLLM performance improvements using:
 ├── docker/
 │   ├── baseline/       # Baseline vLLM setup
 │   │   ├── docker-compose.yml
-│   │   ├── nginx.conf
+│   │   ├── simple-lb/  # Model-aware round-robin LB
 │   │   └── .env.example
 │   └── managed/        # Managed vLLM + KVCached
 │       ├── docker-compose.yml
-│       ├── smart-lb/   # Smart load balancer
+│       ├── smart-lb/   # Queue-aware smart LB
 │       └── .env.example
 ├── benchmark/          # Benchmark framework
-│   ├── run.py          # Main benchmark runner
-│   ├── clients/        # Client implementations
-│   └── workloads/      # Workload configurations
+│   └── genai_perf_runner.sh  # GenAI-Perf benchmark runner
 ├── scripts/            # Deployment & execution scripts
 │   ├── deploy.sh
 │   ├── teardown.sh
-│   └── run_benchmark.sh
-├── results/            # Benchmark outputs
-│   ├── baseline/
-│   └── managed/
-└── analysis/           # Comparison & visualization
-    └── compare.py
+│   ├── test_baseline.sh
+│   ├── benchmark_all_models.sh
+│   └── gcp_quick_deploy.sh
+└── results/            # Benchmark outputs (GenAI-Perf)
+    ├── baseline/
+    └── managed/
 ```
 
 ## Quick Start
@@ -112,10 +119,17 @@ cp docker/managed/.env.example docker/managed/.env
 ./scripts/deploy.sh baseline
 ```
 
-**Run Baseline Benchmark:**
+**Run Baseline Benchmark (GenAI-Perf):**
 
 ```bash
-./scripts/run_benchmark.sh baseline 100 10
+# Install genai-perf (requires Python 3.10+ and CUDA 12)
+pip3 install genai-perf
+
+# Benchmark all 3 models (Llama 8B, Qwen 7B, Llama 70B)
+./scripts/benchmark_all_models.sh baseline 10 100
+
+# Or benchmark a specific model
+./benchmark/genai_perf_runner.sh baseline "meta-llama/Llama-3.1-8B-Instruct" 10 100
 ```
 
 **Teardown Baseline:**
@@ -130,23 +144,34 @@ cp docker/managed/.env.example docker/managed/.env
 ./scripts/deploy.sh managed
 ```
 
-**Run Managed Benchmark:**
+**Run Managed Benchmark (GenAI-Perf):**
 
 ```bash
-./scripts/run_benchmark.sh managed 100 10
+./scripts/benchmark_all_models.sh managed 10 100
 ```
 
-### 4. Compare Results
+### 4. Analyze Results
 
+GenAI-Perf automatically generates comprehensive reports in `results/[baseline|managed]/genai_perf_*/`:
+
+**Automatic Outputs:**
+- `profile_export.csv` - Detailed metrics in CSV format
+- `profile_export.json` - JSON formatted results
+- Performance plots (with `--generate-plots` flag)
+
+**Key Metrics Measured:**
+- **TTFT**: Time to First Token (P50, P90, P99, P99.9)
+- **ITL**: Inter-Token Latency
+- **Request Latency**: End-to-end latency (P50, P90, P99)
+- **Output Token Throughput**: Tokens/sec
+- **Request Throughput**: Requests/sec
+- **GPU Telemetry**: Power usage, memory utilization, GPU utilization
+
+**Custom Analysis:**
 ```bash
+# Compare baseline vs managed using custom script
 python3 analysis/compare.py
 ```
-
-This will generate a comparison report showing improvements in:
-- TTFT (Time to First Token)
-- End-to-end latency
-- Throughput (requests/sec, tokens/sec)
-- GPU memory utilization
 
 ## Benchmark Metrics
 
@@ -192,19 +217,35 @@ Test different concurrency levels:
 
 ## Architecture
 
-### Baseline Setup
+### Baseline Setup (Control)
 
-- **5 vLLM pods** (vanilla `vllm/vllm-openai:v0.6.4.post1`)
-- **Nginx** round-robin load balancer
+- **6 vLLM pods** (vanilla `vllm/vllm-openai:v0.6.4.post1`)
+  - 2x Llama 3.1 8B replicas (GPUs 0-1)
+  - 2x Qwen 2.5 7B replicas (GPUs 2-3)
+  - 2x Llama 3.3 70B replicas (GPUs 4-5, AWQ 4-bit quantized)
+- **Model-Aware Round-Robin LB** (FastAPI)
+  - Simple round-robin cycling through replicas of each model
+  - No queue monitoring, purely stateless round-robin
+  - Routes based on model name in request
 - `--enable-prefix-caching`
-- Dedicated GPU per pod
+- `--quantization awq` (for 70B model)
+- Dedicated GPU per pod (1:1 mapping)
 
-### Managed Setup
+### Managed Setup (Optimized)
 
-- **5 KVCached vLLM pods** (`ghcr.io/ovg-project/kvcached-vllm:latest`)
-- **Smart load balancer** (FastAPI, queue-aware)
-- `ENABLE_KVCACHED=true`
+- **6 KVCached vLLM pods** (`ghcr.io/ovg-project/kvcached-vllm:latest`)
+  - Same model configuration as baseline
+  - Same quantization strategy
+- **Smart Load Balancer** (FastAPI, queue-aware)
+  - Routes to **least busy** replica of requested model
+  - Real-time queue depth monitoring via `/metrics` endpoint
+  - Polls metrics every 1 second
+  - Intelligent routing based on actual load
+- `ENABLE_KVCACHED=true` (elastic KV cache via CUDA VMM)
 - `--no-enable-prefix-caching` (required for KVCached)
+- `--quantization awq` (for 70B model)
+
+**Key Difference:** Managed uses queue-aware routing + KVCached, Baseline uses simple round-robin + standard vLLM caching
 
 ## Troubleshooting
 

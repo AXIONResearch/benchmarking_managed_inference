@@ -29,26 +29,41 @@ class EndpointSelector:
     async def get_best_endpoint(self, model: Optional[str] = None) -> str:
         """
         Select endpoint with lowest queue depth.
-        If model is specified, route to that specific model's endpoint.
+        If model is specified, route to the least busy replica of that model.
         """
         if model:
-            # Route to specific model endpoint if requested
-            model_map = {
-                "meta-llama/Llama-3.1-8B-Instruct": self.endpoints[0],
-                "Qwen/Qwen2.5-7B-Instruct": self.endpoints[1],
-                "mistralai/Mistral-7B-Instruct-v0.3": self.endpoints[2],
-                "google/gemma-2-9b-it": self.endpoints[3],
-                "meta-llama/Llama-3.1-70B-Instruct": self.endpoints[4],
+            # Map models to their replica endpoints
+            model_endpoints = {
+                "meta-llama/Llama-3.1-8B-Instruct": [self.endpoints[0], self.endpoints[1]],
+                "Qwen/Qwen2.5-7B-Instruct": [self.endpoints[2], self.endpoints[3]],
+                "meta-llama/Llama-3.3-70B-Instruct": [self.endpoints[4], self.endpoints[5]],
             }
-            return model_map.get(model, self.endpoints[0])
 
-        # Find endpoint with lowest queue depth
+            # Get endpoints for the requested model
+            candidates = model_endpoints.get(model, self.endpoints[:2])
+
+            # Find the least busy replica
+            min_queue_depth = float('inf')
+            best_endpoint = candidates[0]
+
+            for endpoint in candidates:
+                metrics = endpoint_metrics.get(endpoint, {})
+                queue_depth = metrics.get("queue_depth", float('inf'))
+
+                if queue_depth < min_queue_depth:
+                    min_queue_depth = queue_depth
+                    best_endpoint = endpoint
+
+            logger.info(f"Model {model}: Selected {best_endpoint} (queue: {min_queue_depth})")
+            return best_endpoint
+
+        # If no model specified, find endpoint with lowest queue depth across all
         min_queue_depth = float('inf')
         best_endpoint = self.endpoints[0]
 
         for endpoint in self.endpoints:
             metrics = endpoint_metrics.get(endpoint, {})
-            queue_depth = metrics.get("queue_depth", 0)
+            queue_depth = metrics.get("queue_depth", float('inf'))
 
             if queue_depth < min_queue_depth:
                 min_queue_depth = queue_depth
@@ -183,11 +198,9 @@ async def proxy_request(request: Request):
 async def list_models():
     """List all available models across endpoints."""
     models = [
-        {"id": "meta-llama/Llama-3.1-8B-Instruct", "object": "model"},
-        {"id": "Qwen/Qwen2.5-7B-Instruct", "object": "model"},
-        {"id": "mistralai/Mistral-7B-Instruct-v0.3", "object": "model"},
-        {"id": "google/gemma-2-9b-it", "object": "model"},
-        {"id": "meta-llama/Llama-3.1-70B-Instruct", "object": "model"},
+        {"id": "meta-llama/Llama-3.1-8B-Instruct", "object": "model", "replicas": 2},
+        {"id": "Qwen/Qwen2.5-7B-Instruct", "object": "model", "replicas": 2},
+        {"id": "meta-llama/Llama-3.3-70B-Instruct", "object": "model", "replicas": 2},
     ]
     return {"object": "list", "data": models}
 
