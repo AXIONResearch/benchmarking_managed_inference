@@ -15,8 +15,8 @@ provider "google" {
 }
 
 # GCP Compute Instance with 8x L4 24GB GPUs
-resource "google_compute_instance" "modelsguard_bench" {
-  name         = "modelsguard-bench-l4"
+resource "google_compute_instance" "atomix_bench" {
+  name         = "atomix-bench-l4"
   machine_type = "g2-standard-96"  # 8x L4 24GB
   zone         = var.zone
 
@@ -66,12 +66,12 @@ resource "google_compute_instance" "modelsguard_bench" {
     echo "Setup complete! Ready for vLLM deployment."
   EOF
 
-  tags = ["modelsguard-bench", "http-server", "https-server"]
+  tags = ["atomix-bench", "http-server", "https-server"]
 }
 
 # Firewall rules for vLLM endpoints
 resource "google_compute_firewall" "vllm_ports" {
-  name    = "modelsguard-vllm-ports"
+  name    = "atomix-vllm-ports"
   network = "default"
 
   allow {
@@ -80,20 +80,20 @@ resource "google_compute_firewall" "vllm_ports" {
   }
 
   source_ranges = ["0.0.0.0/0"]  # Restrict this in production
-  target_tags   = ["modelsguard-bench"]
+  target_tags   = ["atomix-bench"]
 }
 
 output "instance_ip" {
-  value       = google_compute_instance.modelsguard_bench.network_interface[0].access_config[0].nat_ip
+  value       = google_compute_instance.atomix_bench.network_interface[0].access_config[0].nat_ip
   description = "Public IP of the A100 benchmark instance"
 }
 
 output "instance_name" {
-  value       = google_compute_instance.modelsguard_bench.name
+  value       = google_compute_instance.atomix_bench.name
   description = "Name of the instance"
 }
 
 output "instance_info" {
-  value = "Instance: ${google_compute_instance.modelsguard_bench.name} with 8x L4 24GB GPUs (~$8/hour)"
+  value = "Instance: ${google_compute_instance.atomix_bench.name} with 8x L4 24GB GPUs (~$8/hour)"
   description = "Instance information"
 }

@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Pod 0: Llama 3.1 8B Replica 1 on GPU 0
   vllm-llama-8b-1:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-llama-8b-1
     runtime: nvidia
     environment:
@@ -35,7 +35,7 @@ services:
 
   # Pod 1: Llama 3.1 8B Replica 2 on GPU 1
   vllm-llama-8b-2:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-llama-8b-2
     runtime: nvidia
     environment:
@@ -67,7 +67,7 @@ services:
 
   # Pod 2: Qwen 2.5 7B Replica 1 on GPU 2
   vllm-qwen-7b-1:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-qwen-7b-1
     runtime: nvidia
     environment:
@@ -99,7 +99,7 @@ services:
 
   # Pod 3: Qwen 2.5 7B Replica 2 on GPU 3
   vllm-qwen-7b-2:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-qwen-7b-2
     runtime: nvidia
     environment:
@@ -131,7 +131,7 @@ services:
 
   # Pod 4: Mixtral 8x7B Instruct Replica 1 on GPU 4-5 (tensor parallel)
   vllm-mixtral-8x7b-1:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-mixtral-8x7b-1
     runtime: nvidia
     environment:
@@ -164,7 +164,7 @@ services:
 
   # Pod 5: Mixtral 8x7B Instruct Replica 2 on GPU 6-7 (tensor parallel)
   vllm-mixtral-8x7b-2:
-    image: vllm/vllm-openai:v0.6.4.post1
+    image: vllm/vllm-openai:latest
     container_name: vllm-mixtral-8x7b-2
     runtime: nvidia
     environment:
