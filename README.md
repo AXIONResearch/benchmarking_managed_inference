@@ -27,6 +27,24 @@ This project benchmarks vLLM performance improvements using:
 - **Platform**: K3s (lightweight Kubernetes)
 - **OS**: Ubuntu 22.04 + CUDA 12.x
 
+### Centralized Configuration
+
+All model configurations are defined in `config/models.yaml` for easy modification:
+
+```yaml
+models:
+  - name: "llama-8b"
+    full_name: "meta-llama/Llama-3.1-8B-Instruct"
+    replicas: 2
+    gpu_count: 1
+```
+
+This single source of truth simplifies:
+- Adding/removing models
+- Changing replica counts
+- Updating GPU allocations
+- Switching between environments (baseline vs managed)
+
 ### Model Configuration (K8s)
 
 | Model | Replicas | GPUs per Pod | Service Name |

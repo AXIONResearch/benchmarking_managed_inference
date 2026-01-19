@@ -1,0 +1,59 @@
+# Centralized Model Configuration
+# This file defines all models used in the benchmark
+
+models:
+  - name: "llama-8b"
+    full_name: "meta-llama/Llama-3.1-8B-Instruct"
+    short_name: "Llama-3.1-8B-Instruct"
+    replicas: 2
+    gpu_count: 1
+    max_model_len: 8192
+
+  - name: "qwen-7b"
+    full_name: "Qwen/Qwen2.5-7B-Instruct"
+    short_name: "Qwen2.5-7B-Instruct"
+    replicas: 2
+    gpu_count: 1
+    max_model_len: 8192
+
+  - name: "mistral-7b"
+    full_name: "mistralai/Mistral-7B-Instruct-v0.3"
+    short_name: "Mistral-7B-Instruct-v0.3"
+    replicas: 2
+    gpu_count: 1
+    max_model_len: 8192
+
+# Environment-specific configurations
+environments:
+  baseline:
+    namespace: "baseline"
+    image: "vllm/vllm-openai:latest"
+    vllm_args:
+      - "--enable-prefix-caching"
+      - "--gpu-memory-utilization"
+      - "0.95"
+    labels:
+      purpose: "vllm-benchmarking"
+      environment: "baseline"
+
+  # Future: managed environment configuration
+  # managed:
+  #   namespace: "managed"
+  #   image: "ghcr.io/ovg-project/kvcached-vllm:latest"
+  #   vllm_args:
+  #     - "--gpu-memory-utilization"
+  #     - "0.95"
+  #   labels:
+  #     purpose: "vllm-benchmarking"
+  #     environment: "managed"
+
+# Shared configuration
+common:
+  port: 8000
+  host: "0.0.0.0"
+  model_cache_path: "/mnt/model-cache/huggingface"
+  health_check:
+    initial_delay_seconds: 60
+    period_seconds: 30
+    liveness_period_seconds: 30
+    readiness_period_seconds: 10
