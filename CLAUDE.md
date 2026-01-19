@@ -488,3 +488,4 @@ scp -i ~/.ssh/google_compute_engine \
 
 **Local:**
 - 8501: Streamlit dashboard
+- NEVER UNDER ANY CIRCUMNSTANCE YOU WILL CREATE MOCK DATA WITHOUT MY PERMISSION
